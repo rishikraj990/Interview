@@ -7,6 +7,9 @@
     "Next Solve Date 3",
     "Next Solve Date 4",
     "Next Solve Date 5"
+  ],
+  "nonFilterableColumns": [
+    "Index"
   ]
 }
 

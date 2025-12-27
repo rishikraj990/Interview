@@ -43,12 +43,13 @@
 <script>
 const EXCEL_FILE_PATH = "Rishik's Sheet.xlsx";
 const CONFIG_PATH = "config.json";
-const DROPDOWN_THRESHOLD = 20;
+const DROPDOWN_THRESHOLD = 50; // it will support 500 unique value otherwise else
 
 let headers = [];
 let originalRows = [];
 let visibleColumns = [];
 let backendHiddenColumns = new Set();
+let backendNonFilterableColumns = new Set();
 
 /* ---------- INIT ---------- */
 
@@ -68,6 +69,7 @@ async function loadBackendConfig() {
 
         const config = await res.json();
         backendHiddenColumns = new Set(config.hiddenColumns || []);
+        backendNonFilterableColumns = new Set(config.nonFilterableColumns || []);
     } catch (e) {
         console.warn("No backend config found, proceeding without restrictions");
     }
@@ -133,7 +135,7 @@ function createFilters() {
     filterContainer.innerHTML = "";
 
     headers.forEach((h, i) => {
-        if (backendHiddenColumns.has(h)) return;
+        if (backendHiddenColumns.has(h) || backendNonFilterableColumns.has(h)) return;
 
         const values = new Set(originalRows.map(r => r[i]).filter(v => v !== ""));
         const col = document.createElement("div");
@@ -206,8 +208,8 @@ function renderTable(rows) {
 
     rows.forEach(r => {
         const tr = document.createElement("tr");
-        headers.forEach((_, i) => {
-            if (backendHiddenColumns.has(headers[i]) || !visibleColumns[i]) return;
+        headers.forEach((h, i) => {
+            if (backendHiddenColumns.has(h) || !visibleColumns[i]) return;
             const td = document.createElement("td");
             td.textContent = r[i] ?? "";
             tr.appendChild(td);
