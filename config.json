@@ -9,7 +9,11 @@
     "Next Solve Date 5"
   ],
   "nonFilterableColumns": [
-    "Index"
+    "Index",
+    "Notes (How I solved, My language)",
+    "Brute",
+    "Better",
+    "Optimal"
   ]
 }
 
