@@ -16,24 +16,52 @@
 
     <style>
         body { padding: 20px; }
+        .page-title {
+            text-align: center;
+            font-family: "Lucida Calligraphy", "Lucida Handwriting", cursive;
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
         table { white-space: nowrap; }
         th, td { font-size: 14px; }
         .filter-input { font-size: 13px; }
+        details summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        details {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
     </style>
 </head>
 <body>
 
 <div class="container-fluid">
-    <h3 class="mb-3">Rishik's Sheet</h3>
-
-    <!-- Column visibility (frontend allowed only) -->
-    <div class="mb-3">
-        <strong>Columns:</strong>
-        <div id="columnToggles" class="d-flex flex-wrap gap-3 mt-2"></div>
+    <div class="page-title">
+        Rishik's Sheet
     </div>
 
-    <!-- Filters -->
-    <div id="filters" class="row g-2 mb-3"></div>
+    <!-- Column Visibility (collapsed by default) -->
+    <details class="mb-3">
+        <summary>Column Visibility</summary>
+        <div id="columnToggles" class="d-flex flex-wrap gap-3 mt-3"></div>
+    </details>
+
+    <!-- Column Filters (collapsed by default) -->
+    <details class="mb-4" open>
+        <summary>Column Filters</summary>
+        <div id="filters" class="row g-2 mt-3"></div>
+        <!-- Reset button -->
+        <div class="mt-3 mb-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
+                Reset Filters
+            </button>
+        </div>
+    </details>
 
     <div class="table-responsive">
         <table class="table table-bordered table-striped" id="excelTable"></table>
@@ -168,6 +196,16 @@ function createFilters() {
     });
 }
 
+/* ---------- RESET FILTERS ---------- */
+
+    function resetFilters() {
+        document.querySelectorAll(".filter-input").forEach(f => {
+            f.value = "";
+        });
+
+        renderTable(originalRows);
+    }
+
 /* ---------- FILTER APPLY ---------- */
 
 function applyFilters() {
@@ -177,7 +215,9 @@ function applyFilters() {
         Array.from(filters).every(f => {
             const idx = f.dataset.index;
             if (!f.value) return true;
-            return (row[idx] ?? "").toString().toLowerCase()
+            return (row[idx] ?? "")
+                .toString()
+                .toLowerCase()
                 .includes(f.value.toLowerCase());
         })
     );
