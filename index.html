@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Excel Auto Viewer (Backend Controlled Columns)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+    <!-- SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        body { padding: 20px; }
+        table { white-space: nowrap; }
+        th, td { font-size: 14px; }
+        .filter-input { font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <h3 class="mb-3">Excel Data (Backend Controlled Columns)</h3>
+
+    <!-- Column visibility (frontend allowed only) -->
+    <div class="mb-3">
+        <strong>Columns:</strong>
+        <div id="columnToggles" class="d-flex flex-wrap gap-3 mt-2"></div>
+    </div>
+
+    <!-- Filters -->
+    <div id="filters" class="row g-2 mb-3"></div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped" id="excelTable"></table>
+    </div>
+</div>
+
+<script>
+const EXCEL_FILE_PATH = "Rishik's Sheet.xlsx";
+const CONFIG_PATH = "config.json";
+const DROPDOWN_THRESHOLD = 20;
+
+let headers = [];
+let originalRows = [];
+let visibleColumns = [];
+let backendHiddenColumns = new Set();
+
+/* ---------- INIT ---------- */
+
+window.addEventListener("load", init);
+
+async function init() {
+    await loadBackendConfig();
+    await loadExcel();
+}
+
+/* ---------- BACKEND CONFIG ---------- */
+
+async function loadBackendConfig() {
+    try {
+        const res = await fetch(CONFIG_PATH);
+        if (!res.ok) return;
+
+        const config = await res.json();
+        backendHiddenColumns = new Set(config.hiddenColumns || []);
+    } catch (e) {
+        console.warn("No backend config found, proceeding without restrictions");
+    }
+}
+
+/* ---------- EXCEL ---------- */
+
+async function loadExcel() {
+    const res = await fetch(EXCEL_FILE_PATH);
+    if (!res.ok) throw new Error("Excel file not found");
+
+    const data = await res.arrayBuffer();
+    const wb = XLSX.read(data, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[1]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+    headers = rows[0];
+    originalRows = rows.slice(1);
+
+    visibleColumns = headers.map(h => !backendHiddenColumns.has(h));
+
+    createColumnToggles();
+    createFilters();
+    renderTable(originalRows);
+}
+
+/* ---------- COLUMN TOGGLES (frontend allowed only) ---------- */
+
+function createColumnToggles() {
+    const container = document.getElementById("columnToggles");
+    container.innerHTML = "";
+
+    headers.forEach((h, i) => {
+        if (backendHiddenColumns.has(h)) return;
+
+        const div = document.createElement("div");
+        div.className = "form-check";
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = visibleColumns[i];
+        cb.className = "form-check-input";
+
+        cb.addEventListener("change", e => {
+            visibleColumns[i] = e.target.checked;
+            applyFilters();
+        });
+
+        const label = document.createElement("label");
+        label.className = "form-check-label";
+        label.textContent = h;
+
+        div.appendChild(cb);
+        div.appendChild(label);
+        container.appendChild(div);
+    });
+}
+
+/* ---------- FILTERS ---------- */
+
+function createFilters() {
+    const filterContainer = document.getElementById("filters");
+    filterContainer.innerHTML = "";
+
+    headers.forEach((h, i) => {
+        if (backendHiddenColumns.has(h)) return;
+
+        const values = new Set(originalRows.map(r => r[i]).filter(v => v !== ""));
+        const col = document.createElement("div");
+        col.className = "col-lg-2 col-md-3 col-sm-4 col-6";
+
+        let input;
+        if (values.size <= DROPDOWN_THRESHOLD) {
+            input = document.createElement("select");
+            input.className = "form-select filter-input";
+            input.innerHTML = `<option value="">All ${h}</option>`;
+            [...values].sort().forEach(v => {
+                const opt = document.createElement("option");
+                opt.value = v;
+                opt.textContent = v;
+                input.appendChild(opt);
+            });
+        } else {
+            input = document.createElement("input");
+            input.type = "text";
+            input.className = "form-control filter-input";
+            input.placeholder = `Filter ${h}`;
+        }
+
+        input.dataset.index = i;
+        input.addEventListener("input", applyFilters);
+        input.addEventListener("change", applyFilters);
+
+        col.appendChild(input);
+        filterContainer.appendChild(col);
+    });
+}
+
+/* ---------- FILTER APPLY ---------- */
+
+function applyFilters() {
+    const filters = document.querySelectorAll(".filter-input");
+
+    const filtered = originalRows.filter(row =>
+        Array.from(filters).every(f => {
+            const idx = f.dataset.index;
+            if (!f.value) return true;
+            return (row[idx] ?? "").toString().toLowerCase()
+                .includes(f.value.toLowerCase());
+        })
+    );
+
+    renderTable(filtered);
+}
+
+/* ---------- TABLE ---------- */
+
+function renderTable(rows) {
+    const table = document.getElementById("excelTable");
+    table.innerHTML = "";
+
+    const thead = document.createElement("thead");
+    const hr = document.createElement("tr");
+
+    headers.forEach((h, i) => {
+        if (backendHiddenColumns.has(h) || !visibleColumns[i]) return;
+        const th = document.createElement("th");
+        th.textContent = h;
+        hr.appendChild(th);
+    });
+
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+
+    rows.forEach(r => {
+        const tr = document.createElement("tr");
+        headers.forEach((_, i) => {
+            if (backendHiddenColumns.has(headers[i]) || !visibleColumns[i]) return;
+            const td = document.createElement("td");
+            td.textContent = r[i] ?? "";
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+}
+</script>
+
+</body>
+</html>
+
